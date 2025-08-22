@@ -1,0 +1,165 @@
+# === Android / Android Studio / Gradle standard .gitignore ===
+# See: common Android Studio templates
+
+# Gradle build output
+/.gradle/
+/build/
+/**/build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log files
+*.log
+
+# Android Studio
+/.idea/
+*.iml
+*.iws
+
+# IntelliJ
+/out/
+
+# Keystore files (keep your signing keys out of VCS)
+*.jks
+*.keystore
+*.keystore.*
+
+# Google services (uncomment if you don't want to commit service files)
+/# Google services JSON (uncomment if you want to keep it out of VCS)
+# /app/google-services.json
+# /app/google-services-*.json
+
+# Firebase service account / plist (iOS, ignore if present or handle separately)
+# /app/google-services.json
+# /ios/GoogleService-Info.plist
+
+# Android/IntelliJ run configs, workspace, caches
+/.idea/**/workspace.xml
+/.idea/**/tasks.xml
+/.idea/dictionaries
+/.idea/usage.statistics.xml
+/.idea/assetWizardSettings.xml
+/.idea/caches
+/.idea/modules.xml
+/.idea/*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Kept by Android Studio
+captures/
+.externalNativeBuild/
+
+# Native build outputs
+/.cxx/
+obj/
+*.o
+*.so
+
+# NDK and CMake
+CMakeLists.txt.user
+build/intermediates/
+.build/
+
+# Gradle wrapper
+!gradle/wrapper/gradle-wrapper.jar
+gradle/wrapper/gradle-wrapper.properties
+
+# Gradle user home (caches)
+.gradle/
+# If you commit gradle wrapper jar, keep it; otherwise ignore
+# gradle-wrapper.jar
+
+# Build scans / Gradle daemon
+.gradle/
+gradle-app.setting
+
+# Kotlin specific
+*.kotlin_module
+/*.kotlin_module
+
+# Generated files
+*/generated/
+*/gen/
+
+# Android Studio plugin settings
+.idea/workspace.xml
+.idea/gradle.xml
+.idea/libraries
+
+# ProGuard / R8 generated mapping (you may want to keep mapping files — ignore if you don't)
+/**/mapping.txt
+**/mapping.txt
+
+# Coverage
+coverage/
+*.ec
+jacoco.exec
+
+# Test results
+/test-results/
+**/test-results/
+
+# Parceler / annotation processors
+*.apt_generated
+*.hprof
+
+# Jetpack Compose preview caches
+.compose/
+
+# Fastlane (credentials, metadata)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md
+
+# Signing files & secrets - common patterns
+/*.keystore
+/*.jks
+**/signing.properties
+**/*.keystore
+**/*.jks
+**/*.p12
+
+# dotenv / environment files
+.env
+.env.*
+*.env
+
+# Secret files used by CI or local dev
+secrets.properties
+local.properties
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# Editor directories and files
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Node / JS (if using tools that produce node_modules)
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+
+# Misc
+*.iml
+*.hprof
+
+# Optional: ignore IDE specific folders (uncomment if you want)
+/.idea/
+*.iml
+
+# Keep the gradle wrapper properties but ignore other wrapper artifacts if you like:
+# /gradle/wrapper/gradle-wrapper.jar
+
+# End of file

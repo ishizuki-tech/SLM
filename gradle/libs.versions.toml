@@ -1,0 +1,161 @@
+# =====================================================================
+# libs.versions.toml
+# ---------------------------------------------------------------------
+# 目的:
+# - 依存関係のバージョンを一元管理（安定・再現性・可読性の向上）
+# - Compose は BOM で統一。→ Compose 関連は原則 version を書かない
+# - "plugins" もここで固定してビルドの再現性を担保
+#
+# メモ:
+# - Kotlin シリアライゼーションの Gradle プラグインは Kotlin と同一系に揃えると安全
+# - Alpha/Beta ライブラリは将来の破壊的変更に注意（コメントで印）
+# =====================================================================
+
+[versions]
+# --- Toolchain / Core -------------------------------------------------
+agp                     = "8.10.1"     # Android Gradle Plugin（Kotlin 2.1 まで想定互換）
+kotlin                  = "2.1.0"     # Kotlin 本体（言語/コンパイラ）
+kotlinxCoroutinesAndroid = "1.9.0"
+lifecycleViewmodelCompose = "2.9.2"
+material3 = "1.3.2"
+materialIconsExtended = "1.7.8"
+serializationPlugin     = "2.1.0"     # ← Kotlin と合わせる（以前は 2.0.21）
+
+# --- AndroidX / Jetpack ----------------------------------------------
+coreKtx                 = "1.17.0"
+lifecycleRuntimeKtx     = "2.9.2"
+lifecycleProcess        = "2.9.2"
+activityCompose         = "1.10.1"    # Compose エントリポイント（Activity連携）
+navigation              = "2.9.3"     # Navigation-Compose 等のバージョンルート
+workRuntime             = "2.10.3"
+dataStore               = "1.1.7"
+cameraX                 = "1.4.2"
+splashscreen            = "1.2.0-rc01" # β版: 将来 API 変更の可能性あり
+
+# --- Compose ----------------------------------------------------------
+composeBom              = "2025.08.00"  # Compose は BOM で一括管理（個別 version は書かない）
+
+# --- Testing ----------------------------------------------------------
+junit                   = "4.13.2"
+junitVersion            = "1.3.0"
+espressoCore            = "3.7.0"
+
+# --- Google / Firebase / Play ----------------------------------------
+googleService           = "4.4.3"     # Google Services Gradle Plugin
+firebaseBom             = "34.1.0"    # Firebase も BOM で一括管理
+ossLicenses             = "0.10.6"    # OSS ライセンスプラグイン
+playServicesOssLicenses = "17.2.2"
+
+# --- DI / Build tools -------------------------------------------------
+hilt                    = "2.57"
+hiltNavigation          = "1.2.0"
+
+# --- ML / AI ----------------------------------------------------------
+# MediaPipe Tasks は用途ごとにバージョンが異なることがあるため分離管理
+mediapipeTasksText           = "0.20230731"
+mediapipeTasksGenai          = "0.10.27"
+
+# --- TFLite (Play Services 配布) --------------------------------------
+playServicesTfliteJava = "16.4.0"
+playServicesTfliteGpu  = "16.4.0"     # Java/GPU は同一系列で揃えると不具合が少ない
+
+# --- Serialization / JSON / Proto ------------------------------------
+serializationJson       = "1.7.3"
+gson                    = "2.12.1"    # Gson はレガシー互換向け。新規は kotlinx.serialization 推奨
+protobuf                = "0.9.5"     # com.google.protobuf Gradle Plugin
+protobufJavaLite        = "4.26.1"    # Android では *javalite を使用
+
+# --- UI 補助 ----------------------------------------------------------
+commonmark              = "1.0.0-alpha02" # α版: 将来変更に注意
+richtext                = "1.0.0-alpha02"
+exifinterface           = "1.4.1"
+
+[libraries]
+# --- AndroidX Core / Lifecycle ---------------------------------------
+androidx-core-ktx               = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx  = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-process      = { group = "androidx.lifecycle", name = "lifecycle-process",      version.ref = "lifecycleProcess" }
+
+# --- Compose 基本（BOMで管理: 各 artifact に version は書かない）--------
+androidx-activity-compose       = { group = "androidx.activity",         name = "activity-compose",  version.ref = "activityCompose" }
+androidx-compose-bom            = { group = "androidx.compose",          name = "compose-bom",       version.ref = "composeBom" }
+androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsExtended" }
+androidx-ui                     = { group = "androidx.compose.ui",       name = "ui" }
+androidx-ui-graphics            = { group = "androidx.compose.ui",       name = "ui-graphics" }
+androidx-ui-tooling             = { group = "androidx.compose.ui",       name = "ui-tooling" }
+androidx-ui-tooling-preview     = { group = "androidx.compose.ui",       name = "ui-tooling-preview" }
+androidx-ui-test-manifest       = { group = "androidx.compose.ui",       name = "ui-test-manifest" }
+androidx-ui-test-junit4         = { group = "androidx.compose.ui",       name = "ui-test-junit4" }
+androidx-material3              = { group = "androidx.compose.material3",name = "material3" }
+
+# material-icons-extended も BOM 管理に乗るため version は付けない
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
+lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
+material-icon-extended          = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+# --- Navigation / Work / Data ----------------------------------------
+androidx-compose-navigation     = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+androidx-work-runtime           = { group = "androidx.work",       name = "work-runtime-ktx",   version.ref = "workRuntime" }
+androidx-datastore              = { group = "androidx.datastore",  name = "datastore",          version.ref = "dataStore" }
+
+# --- CameraX / Splash -------------------------------------------------
+camerax-core                    = { group = "androidx.camera", name = "camera-core",     version.ref = "cameraX" }
+camerax-camera2                 = { group = "androidx.camera", name = "camera-camera2",  version.ref = "cameraX" }
+camerax-lifecycle               = { group = "androidx.camera", name = "camera-lifecycle",version.ref = "cameraX" }
+camerax-view                    = { group = "androidx.camera", name = "camera-view",     version.ref = "cameraX" }
+androidx-splashscreen           = { group = "androidx.core",   name = "core-splashscreen", version.ref = "splashscreen" }
+
+# --- JSON / Serialization --------------------------------------------
+kotlinx-serialization-json      = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serializationJson" }
+com-google-code-gson            = { group = "com.google.code.gson",  name = "gson",                      version.ref = "gson" }
+
+# --- Proto / Protobuf -------------------------------------------------
+material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+protobuf-javalite               = { group = "com.google.protobuf", name = "protobuf-javalite", version.ref = "protobufJavaLite" }
+
+# --- Hilt / DI --------------------------------------------------------
+hilt-android                    = { module = "com.google.dagger:hilt-android",           version.ref = "hilt" }
+hilt-navigation-compose         = { module = "androidx.hilt:hilt-navigation-compose",    version.ref = "hiltNavigation" }
+hilt-android-testing            = { module = "com.google.dagger:hilt-android-testing",   version.ref = "hilt" }
+hilt-android-compiler           = { module = "com.google.dagger:hilt-android-compiler",  version.ref = "hilt" }
+
+# --- Firebase（BOM 使用: 個別ライブラリは version なし）-------------------
+firebase-bom                    = { group = "com.google.firebase", name = "firebase-bom",       version.ref = "firebaseBom" }
+firebase-analytics              = { group = "com.google.firebase", name = "firebase-analytics" }
+
+# --- OSS ライセンス表示 ------------------------------------------------
+play-services-oss-licenses      = { module = "com.google.android.gms:play-services-oss-licenses", version.ref = "playServicesOssLicenses" }
+
+# --- MediaPipe Tasks / GenAI -----------------------------------------
+# IDE が古いと「GradleDependency」警告が出る場合あり。互換性の都合でピン留め。
+#noinspection Aligned16KB
+mediapipe-tasks-text            = { group = "com.google.mediapipe", name = "tasks-text",                   version.ref = "mediapipeTasksText" }
+mediapipe-tasks-genai           = { group = "com.google.mediapipe", name = "tasks-genai",                  version.ref = "mediapipeTasksGenai" }
+
+# --- TFLite (Play Services) ------------------------------------------
+tflite                          = { group = "com.google.android.gms", name = "play-services-tflite-java",    version.ref = "playServicesTfliteJava" }
+tflite-gpu                      = { group = "com.google.android.gms", name = "play-services-tflite-gpu",     version.ref = "playServicesTfliteGpu" }
+tflite-support                  = { group = "com.google.android.gms", name = "play-services-tflite-support", version.ref = "playServicesTfliteJava" }
+
+# --- UI 補助 / RichText / EXIF ---------------------------------------
+commonmark                      = { group = "com.halilibo.compose-richtext", name = "richtext-commonmark",   version.ref = "commonmark" }
+richtext                        = { group = "com.halilibo.compose-richtext", name = "richtext-ui-material3", version.ref = "richtext" }
+androidx-exifinterface          = { group = "androidx.exifinterface",        name = "exifinterface",         version.ref = "exifinterface" }
+
+# --- Testing ----------------------------------------------------------
+junit                           = { group = "junit",             name = "junit",         version.ref = "junit" }
+androidx-junit                  = { group = "androidx.test.ext", name = "junit",         version.ref = "junitVersion" }
+androidx-espresso-core          = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+
+[plugins]
+# --- Android / Kotlin -------------------------------------------------
+android-application   = { id = "com.android.application",               version.ref = "agp" }
+kotlin-android        = { id = "org.jetbrains.kotlin.android",          version.ref = "kotlin" }
+kotlin-compose        = { id = "org.jetbrains.kotlin.plugin.compose",   version.ref = "kotlin" } # Compose Compiler は Kotlin と同期
+kotlin-serialization  = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "serializationPlugin" }
+
+# --- Proto / Google ---------------------------------------------------
+google-services       = { id = "com.google.gms.google-services",         version.ref = "googleService" }
+
+# --- Hilt / OSS -------------------------------------------------------
+hilt-application      = { id = "com.google.dagger.hilt.android",         version.ref = "hilt" }
