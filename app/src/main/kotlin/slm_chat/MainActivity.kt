@@ -64,13 +64,13 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-//                            composable(CHAT_SCREEN) {
-//                                ChatRoute()
-//                            }
-
-                            composable(SURVEY_SCREEN) {
+                            composable(CHAT_SCREEN) {
                                 ChatRoute()
                             }
+
+//                            composable(SURVEY_SCREEN) {
+//                                SurveyRoute()
+//                            }
                         }
                     }
                 }

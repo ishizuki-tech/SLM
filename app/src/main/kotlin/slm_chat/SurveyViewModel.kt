@@ -1,38 +1,61 @@
 package slm_chat
 
-import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withContext
 
 private const val TAG = "SurveyViewModel"
 
 /**
- * ViewModel:
- * - SurveyValidator を使って検査を走らせる
- * - InferenceModel.partialResults を購読してストリーミング表示を更新する
+ * Minimal ViewModel that uses ONLY the suspend SurveyValidator.validateResponse API.
+ *
+ * - No streaming support (because validateResponse returns only after completion).
+ * - Cancellation cancels the coroutine waiting for validateResponse (best-effort).
  */
-class SurveyViewModel(application: Application) : AndroidViewModel(application) {
+class SurveyViewModel(private val context: Context) : ViewModel() {
 
-    private val validator = SurveyValidator(application.applicationContext)
-    private val model = InferenceModel.getInstance(application.applicationContext)
+    private val validator = SurveyValidator(context)
 
-    // Compose の state を ViewModel 内で使うためのプロパティ（delegate を使う場合は getValue/setValue を import）
-    var questionText by mutableStateOf("この冬、最も困った農作業の問題は何ですか？")
+    // UI-observed state (Compose-friendly)
+    var questionText by mutableStateOf("What is your name?")
         private set
 
     var userAnswer by mutableStateOf("")
         private set
 
-    var streamingText by mutableStateOf("")
+    var validatePrompt by mutableStateOf("""
+        You are an assistant that evaluates survey responses.
+        Read the input below and return a strict JSON object on a single line only (do not output any extra explanation).
+
+        The output JSON must include the following keys:
+        {
+          "relevance": <0|1|2>,        // 0=irrelevant, 1=partially relevant, 2=fully relevant
+          "specificity": <0|1|2>,      // 0=vague, 1=somewhat specific, 2=very specific
+          "actionability": <0|1|2>,    // 0=not actionable, 1=needs refinement, 2=actionable as-is
+          "overall": <0|1|2>,          // optional aggregate score (recommended)
+          "needs_followup": <true|false>,
+          "followup": "<follow-up question (short, include only if needs_followup is true)>"
+        }
+
+        Important:
+        - Output ONLY the JSON object and nothing else. If any extra text is output, parsing may fail and the caller will fall back.
+        - Make the followup concise (one short sentence).
+        
+        
+    """.trimIndent()
+    )
+
+    // we don't get partial streaming for this pattern; keep for showing raw output after finish
+    var rawOutput by mutableStateOf("")
         private set
 
     var isLoading by mutableStateOf(false)
@@ -44,87 +67,89 @@ class SurveyViewModel(application: Application) : AndroidViewModel(application) 
     var lastError by mutableStateOf<String?>(null)
         private set
 
-    private var currentRequestId: String? = null
-    private var streamingCollectorJob: Job? = null
+    // Job representing the running validateResponse coroutine (so UI can cancel it)
+    private var validationJob: Job? = null
 
+    fun onPromptChange(p: String) { validatePrompt = p }
     fun onQuestionChange(q: String) { questionText = q }
     fun onAnswerChange(a: String) { userAnswer = a }
 
     /**
-     * 検証開始（非同期）。validateResponseAsync のコールバックで結果を受け取る。
+     * Start validation using the suspend API (validateResponse).
+     * This is the simple A pattern you requested.
      */
-    fun startValidation(timeoutMs: Long = 15_000L) {
+    fun startValidationUsingSuspend(timeoutMs: Long = 15_000L) {
         if (isLoading) return
+
         lastError = null
         lastValidationResult = null
-        streamingText = ""
+        rawOutput = ""
         isLoading = true
 
-        val reqId = validator.validateResponseAsync(
-            questionText = questionText,
-            userAnswer = userAnswer,
-            timeoutMs = timeoutMs,
-            topK = 40,
-            temperature = 0.2f,
-            randomSeed = null
-        ) { result ->
-            // コールバックはバックグラウンドスレッドから呼ばれる可能性があるため main に戻す
-            viewModelScope.launch(Dispatchers.Main) {
-                lastValidationResult = result
-                isLoading = false
-                streamingCollectorJob?.cancel()
-                streamingCollectorJob = null
-                currentRequestId = null
-            }
-        }
+        // cancel previous if any
+        validationJob?.cancel()
 
-        currentRequestId = reqId
-
-        // partialResults を購読して streamingText を更新 (viewModelScope は Main dispatcher)
-        streamingCollectorJob?.cancel()
-        streamingCollectorJob = viewModelScope.launch {
+        validationJob = viewModelScope.launch {
             try {
-                model.partialResults
-                    .filter { it.requestId == reqId }
-                    .collect { pr ->
-                        // UI スレッドで文字列を連結
-                        streamingText = streamingText + pr.text
-                        if (pr.done) {
-                            // done が来たら購読は自然終了する（collect 後の処理があればここで）
-                        }
-                    }
-            } catch (e: Exception) {
-                Log.w(TAG, "streaming collector stopped", e)
+                val result = withContext(Dispatchers.IO) {
+                    validator.validateResponse(
+                        validatePrompt = validatePrompt,
+                        questionText = questionText,
+                        userAnswer = userAnswer,
+                        timeoutMs = timeoutMs,
+                        topK = 40,
+                        temperature = 0.2f,
+                        randomSeed = null
+                    )
+                }
+                // update UI on Main
+                lastValidationResult = result
+                rawOutput = result.rawModelOutput
+            } catch (e: Throwable) {
+                Log.w(TAG, "validateResponse (suspend) failed or cancelled", e)
+                lastError = e.message ?: "Validation error"
+            } finally {
+                isLoading = false
+                validationJob = null
             }
         }
     }
 
     /**
-     * 現在の検証をキャンセル（UI から呼ぶ）
+     * Cancel the suspend-style validation job (best-effort).
+     *
+     * Note: this cancels the coroutine waiting on validateResponse. Because the validator
+     * internally calls model.startRequest and we don't have the requestId until the
+     * suspend function returns, this does not guarantee immediate model-side stop.
+     * For guaranteed immediate model-side cancellation use the async/requestId pattern.
      */
-    fun cancelValidation() {
-        val req = currentRequestId ?: return
-        try {
-            validator.cancelValidation(req)
-        } catch (e: Throwable) {
-            Log.w(TAG, "validator.cancelValidation threw", e)
-        }
-        try {
-            model.cancelRequest(req)
-        } catch (e: Throwable) {
-            Log.w(TAG, "model.cancelRequest threw", e)
-        }
-        streamingCollectorJob?.cancel()
-        streamingCollectorJob = null
-        currentRequestId = null
+    fun cancelValidationUsingSuspend() {
+        validationJob?.cancel()
+        validationJob = null
+
         isLoading = false
-        streamingText = streamingText + "\n\n-- cancelled --"
+        rawOutput = rawOutput + "\n\n-- cancelled --"
     }
 
     override fun onCleared() {
         super.onCleared()
-        streamingCollectorJob?.cancel()
-        // 保険で全キャンセル（空文字は無視される実装なら問題ない）
-        try { currentRequestId?.let { validator.cancelValidation(it) } } catch (_: Throwable) {}
+        validationJob?.cancel()
+        // optional: close validator resources
+        try { validator.close() } catch (_: Throwable) {}
+    }
+
+    // Factory for Compose viewModel(...) usage
+    companion object {
+        fun getFactory(context: Context): ViewModelProvider.Factory {
+            return object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(SurveyViewModel::class.java)) {
+                        return SurveyViewModel(context) as T
+                    }
+                    throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+                }
+            }
+        }
     }
 }
