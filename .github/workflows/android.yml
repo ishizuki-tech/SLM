@@ -133,19 +133,15 @@ jobs:
           echo "Available: curl=$(command -v curl || echo 'no'), wget=$(command -v wget || echo 'no')"
 
       # If a download script exists, require HF_TOKEN is set to avoid confusing failures.
-      - name: Validate HF_TOKEN when download script present
+      - name: Validate HF_TOKEN
         shell: bash
         run: |
           set -euo pipefail
-          if [ -f "./download_models.sh" ]; then
-            if [ -z "${HF_TOKEN:-}" ]; then
-              echo "Error: download_models.sh exists but HF_TOKEN secret is not set. Please add HF_TOKEN to repository secrets." >&2
-              exit 1
-            else
-              echo "HF_TOKEN present (not printed). Proceeding with model download."
-            fi
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "Error: download_models.sh exists but HF_TOKEN secret is not set. Please add HF_TOKEN to repository secrets." >&2
+            exit 1
           else
-            echo "download_models.sh not present; skipping HF_TOKEN check."
+            echo "HF_TOKEN present (not printed). Proceeding with model download."
           fi
 
       # Explicitly run the downloadModel Gradle task so logs are clearer and separated
