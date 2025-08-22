@@ -64,10 +64,6 @@ CMakeLists.txt.user
 build/intermediates/
 .build/
 
-# Gradle wrapper
-!gradle/wrapper/gradle-wrapper.jar
-gradle/wrapper/gradle-wrapper.properties
-
 # Gradle user home (caches)
 .gradle/
 # If you commit gradle wrapper jar, keep it; otherwise ignore
@@ -164,5 +160,8 @@ yarn-error.log
 # /gradle/wrapper/gradle-wrapper.jar
 
 *.task
+
+!gradle/wrapper/
+!gradle/wrapper/gradle-wrapper.jar
 
 # End of file
