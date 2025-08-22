@@ -30,6 +30,7 @@ import slm_chat.ui.theme.NegiTheme
 
 const val START_SCREEN = "start_screen"
 const val CHAT_SCREEN = "chat_screen"
+const val SURVEY_SCREEN = "survey_screen"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,7 +64,11 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            composable(CHAT_SCREEN) {
+//                            composable(CHAT_SCREEN) {
+//                                ChatRoute()
+//                            }
+
+                            composable(SURVEY_SCREEN) {
                                 ChatRoute()
                             }
                         }
