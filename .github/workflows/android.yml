@@ -53,14 +53,13 @@ jobs:
 
       # -----------------------------
       # Android SDK を手動でセットアップ（NDK は不要）
-      # 直接 sdkmanager を呼んで個別引数でパッケージを渡す方式に変更
+      # Broken-pipe を防ぎ、インストール結果を検証する堅牢版
       # -----------------------------
-      - name: Set up Android SDK (manual, no NDK)
+      - name: Set up Android SDK (manual, no NDK) - robust
         shell: bash
         run: |
           set -euo pipefail
 
-          # デフォルトの SDK ルート（GitHub runner の既定パス）
           ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
           mkdir -p "$ANDROID_SDK_ROOT"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
@@ -78,30 +77,56 @@ jobs:
           # 見つからなければコマンドラインツールをダウンロードして展開
           if [ -z "$SDKMANAGER" ]; then
             echo "sdkmanager not found — downloading commandlinetools..."
+            # ensure unzip present
+            if ! command -v unzip >/dev/null 2>&1; then
+              sudo apt-get update -y
+              sudo apt-get install -y unzip
+            fi
             tmpdir=$(mktemp -d)
             cd "$tmpdir"
-            # 公式コマンドラインツール（URL は将来変わる可能性あり）
             curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -o cmdline.zip
             unzip -q cmdline.zip -d cmdline-tools
             mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
-            # 配置先のパスは cmdline-tools の中身によるため調整
-            mv cmdline-tools/cmdline-tools/* "${ANDROID_SDK_ROOT}/cmdline-tools/latest/" || true
+            # move inner folder content; tolerate different archive layouts
+            if [ -d cmdline-tools/cmdline-tools ]; then
+              mv cmdline-tools/cmdline-tools/* "${ANDROID_SDK_ROOT}/cmdline-tools/latest/" || true
+            else
+              mv cmdline-tools/* "${ANDROID_SDK_ROOT}/cmdline-tools/latest/" || true
+            fi
             SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
             cd -
           fi
 
           echo "Using sdkmanager: $SDKMANAGER"
 
-          # 必要パッケージを個別引数でインストール（platforms;android-36 は compileSdk 36 に対応）
-          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" "platform-tools" "platforms;android-36"
+          # Install required packages (pass individually)
+          # NOTE: yes | sdkmanager may produce a broken pipe on the 'yes' side; guard with || true
+          ( yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" "platform-tools" "platforms;android-36" ) || true
 
-          # ライセンス受諾
-          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses || true
+          # Accept licenses (guard as well)
+          ( yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses ) || true
 
-          # platform-tools を PATH に追加（以降の step で adb 等が使えるように）
+          # 確認: platform-tools と platforms;android-36 が存在するかをチェック
+          if [ -d "${ANDROID_SDK_ROOT}/platform-tools" ]; then
+            echo "platform-tools directory present."
+          else
+            echo "::error::platform-tools not found at ${ANDROID_SDK_ROOT}/platform-tools after install."
+            ls -la "${ANDROID_SDK_ROOT}" || true
+            exit 1
+          fi
+
+          if [ -d "${ANDROID_SDK_ROOT}/platforms/android-36" ]; then
+            echo "platforms;android-36 installed."
+          else
+            echo "::warning::platforms;android-36 not found at ${ANDROID_SDK_ROOT}/platforms/android-36."
+            # 重要: ここで exit 1 にするかどうかはポリシー次第。
+            # ビルドがcompileSdk 36 を要求するなら失敗させるのが明示的で安全:
+            exit 1
+          fi
+
           echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
 
-      # Gradle setup - キャッシュサービス障害で止めたくない場合は寛容に
+      # Gradle setup - キャッシュ障害で止めたくない場合
       - name: Setup Gradle (cache)
         uses: gradle/actions/setup-gradle@v3
         continue-on-error: true
@@ -159,8 +184,8 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > keystore.jks
           echo "ANDROID_KEYSTORE_FILE=$PWD/keystore.jks" >> $GITHUB_ENV
 
-      # download script に必要なツール確認
-      - name: Ensure download tools (curl or wget)
+      # download script に必要なツール確認（ここでも unzip/wget を入れる）
+      - name: Ensure download tools (curl or wget, unzip)
         shell: bash
         run: |
           set -euo pipefail
@@ -169,7 +194,7 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y wget ca-certificates unzip
           fi
-          echo "Available: curl=$(command -v curl || echo 'no'), wget=$(command -v wget || echo 'no')"
+          echo "Available: curl=$(command -v curl || echo 'no'), wget=$(command -v wget || echo 'no'), unzip=$(command -v unzip || echo 'no')"
 
       # Validate HF_TOKEN (module-scoped)
       - name: Validate HF_TOKEN (module-scoped)
