@@ -14,6 +14,7 @@ local.properties
 
 # Android Studio
 /.idea/
+/.kotlin/
 *.iml
 *.iws
 
@@ -161,5 +162,7 @@ yarn-error.log
 
 # Keep the gradle wrapper properties but ignore other wrapper artifacts if you like:
 # /gradle/wrapper/gradle-wrapper.jar
+
+*.task
 
 # End of file

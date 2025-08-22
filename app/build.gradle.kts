@@ -3,6 +3,41 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+// downloadModel:
+// - If `download_models.sh` is present, mark it executable and run it.
+// - If not present, task is skipped (onlyIf).
+tasks.register<Exec>("downloadModel") {
+    description = "Execute model download script (download_models.sh) if it exists."
+    group = "setup"
+
+    // Skip the task when the script is absent — avoids failure in CI if you don't include the script.
+    onlyIf {
+        val script = file("download_models.sh")
+        if (!script.exists()) {
+            logger.warn("⚠️  download_models.sh not found; skipping model download.")
+            false
+        } else {
+            true
+        }
+    }
+
+    // Ensure the script has execute permission immediately before running.
+    doFirst {
+        val script = file("download_models.sh")
+        if (!script.canExecute()) {
+            logger.lifecycle("🔧 Giving execute permission to download_models.sh")
+            script.setExecutable(true)
+        }
+    }
+
+    // Exec task runs the script using bash; change if you want a different shell.
+    commandLine("bash", "./download_models.sh")
+}
+
+// Make sure preBuild depends on our setup tasks so they run automatically before building.
+tasks.named("preBuild") {
+    dependsOn("downloadModel")
+}
 
 android {
     namespace = "com.negi.slm_chat"
