@@ -51,16 +51,55 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # Android SDK: NDK は不要のため含めない
-      - name: Set up Android SDK (no NDK)
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            cmdline-tools;latest
-            platform-tools
-            platforms;android-36
-          accept-android-sdk-licenses: true
-          log-accepted-android-sdk-licenses: true
+      # -----------------------------
+      # Android SDK を手動でセットアップ（NDK は不要）
+      # 直接 sdkmanager を呼んで個別引数でパッケージを渡す方式に変更
+      # -----------------------------
+      - name: Set up Android SDK (manual, no NDK)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # デフォルトの SDK ルート（GitHub runner の既定パス）
+          ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
+          mkdir -p "$ANDROID_SDK_ROOT"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          # sdkmanager の候補を探す
+          SDKMANAGER=""
+          if [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+          elif [ -x "${ANDROID_SDK_ROOT}/cmdline-tools/16.0/bin/sdkmanager" ]; then
+            SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/16.0/bin/sdkmanager"
+          elif command -v sdkmanager >/dev/null 2>&1; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          fi
+
+          # 見つからなければコマンドラインツールをダウンロードして展開
+          if [ -z "$SDKMANAGER" ]; then
+            echo "sdkmanager not found — downloading commandlinetools..."
+            tmpdir=$(mktemp -d)
+            cd "$tmpdir"
+            # 公式コマンドラインツール（URL は将来変わる可能性あり）
+            curl -fSL "https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip" -o cmdline.zip
+            unzip -q cmdline.zip -d cmdline-tools
+            mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools/latest"
+            # 配置先のパスは cmdline-tools の中身によるため調整
+            mv cmdline-tools/cmdline-tools/* "${ANDROID_SDK_ROOT}/cmdline-tools/latest/" || true
+            SDKMANAGER="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
+            cd -
+          fi
+
+          echo "Using sdkmanager: $SDKMANAGER"
+
+          # 必要パッケージを個別引数でインストール（platforms;android-36 は compileSdk 36 に対応）
+          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" "platform-tools" "platforms;android-36"
+
+          # ライセンス受諾
+          yes | "$SDKMANAGER" --sdk_root="${ANDROID_SDK_ROOT}" --licenses || true
+
+          # platform-tools を PATH に追加（以降の step で adb 等が使えるように）
+          echo "${ANDROID_SDK_ROOT}/platform-tools" >> $GITHUB_PATH
 
       # Gradle setup - キャッシュサービス障害で止めたくない場合は寛容に
       - name: Setup Gradle (cache)
@@ -81,7 +120,7 @@ jobs:
           sed -n '1,20p' ./gradlew || true
           echo "JAVA_HOME=${JAVA_HOME:-<unset>}"
           echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
-          echo "HF_TOKEN is ${HF_TOKEN:+<set>}"   # トークンの値は出力しない
+          echo "HF_TOKEN is ${HF_TOKEN:+<set>}"
           java -version || true
 
       - name: Ensure gradle wrapper present (fallback if missing)
@@ -128,11 +167,11 @@ jobs:
           if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
             echo "curl/wget not found — installing wget (requires sudo)"
             sudo apt-get update -y
-            sudo apt-get install -y wget ca-certificates
+            sudo apt-get install -y wget ca-certificates unzip
           fi
           echo "Available: curl=$(command -v curl || echo 'no'), wget=$(command -v wget || echo 'no')"
 
-      # Validate HF_TOKEN (モジュール内のスクリプトがある場合のみ必須にする)
+      # Validate HF_TOKEN (module-scoped)
       - name: Validate HF_TOKEN (module-scoped)
         shell: bash
         run: |
@@ -149,7 +188,6 @@ jobs:
             echo "${SCRIPT_PATH} not present; skipping HF_TOKEN check."
           fi
 
-      # Download models (Gradle task) - モジュール内スクリプトがある場合のみ実行
       - name: Download models (Gradle task) - guarded by module path
         shell: bash
         run: |
