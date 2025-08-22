@@ -37,6 +37,8 @@ jobs:
       ORG_GRADLE_PROJECT_releaseStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ORG_GRADLE_PROJECT_releaseKeyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
       ORG_GRADLE_PROJECT_releaseKeyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      # <-- NEW: Hugging Face token for model downloads (set in repo secrets)
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
     steps:
       - name: Checkout code (with submodules)
@@ -76,6 +78,7 @@ jobs:
           sed -n '1,20p' ./gradlew || true
           echo "JAVA_HOME=${JAVA_HOME:-<unset>}"
           echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
+          echo "HF_TOKEN is ${HF_TOKEN:+<set>}"   # do not print token value
           java -version || true
 
       - name: Ensure gradle wrapper present (fallback if missing)
@@ -113,6 +116,45 @@ jobs:
           set -euo pipefail
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > keystore.jks
           echo "ANDROID_KEYSTORE_FILE=$PWD/keystore.jks" >> $GITHUB_ENV
+
+      # ----------------------------
+      # Ensure curl/wget available (required by download script)
+      # ----------------------------
+      - name: Ensure download tools (curl or wget)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # On ubuntu-latest curl is usually installed; ensure wget too.
+          if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+            echo "curl/wget not found — installing wget (requires sudo)"
+            sudo apt-get update -y
+            sudo apt-get install -y wget ca-certificates
+          fi
+          echo "Available: curl=$(command -v curl || echo 'no'), wget=$(command -v wget || echo 'no')"
+
+      # If a download script exists, require HF_TOKEN is set to avoid confusing failures.
+      - name: Validate HF_TOKEN when download script present
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "./download_models.sh" ]; then
+            if [ -z "${HF_TOKEN:-}" ]; then
+              echo "Error: download_models.sh exists but HF_TOKEN secret is not set. Please add HF_TOKEN to repository secrets." >&2
+              exit 1
+            else
+              echo "HF_TOKEN present (not printed). Proceeding with model download."
+            fi
+          else
+            echo "download_models.sh not present; skipping HF_TOKEN check."
+          fi
+
+      # Explicitly run the downloadModel Gradle task so logs are clearer and separated
+      - name: Download models (Gradle task)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running Gradle downloadModel task..."
+          ./gradlew :${MODULE_PATH}:downloadModel --no-daemon --stacktrace
 
       - name: Build with Gradle (Release)
         id: gradle_build
@@ -211,7 +253,6 @@ jobs:
           echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
           echo "Tag: $TAG"
 
-      # ======== Compose Release body (NO heredoc; printf-based) ========
       - name: Compose release body (notes + install guide)
         id: release_body
         shell: bash
@@ -306,7 +347,6 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             
-            // ✅ toJSON で安全に埋め込む（改行・記号を正しくエスケープ）
             function toList(multiline) {
               return (multiline || '').split('\n').map(s => s.trim()).filter(Boolean);
             }
